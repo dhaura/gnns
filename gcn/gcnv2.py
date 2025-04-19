@@ -19,19 +19,19 @@ class GCNLayerV2(nn.Module):
         nn.init.xavier_uniform_(self.weights_self)
 
         if use_bias:
-        # Define bias and initialize it to zeros.
-        self.bias = nn.Parameter(torch.FloatTensor(output_dim))
-        nn.init.zeros_(self.bias)
+            # Define bias and initialize it to zeros.
+            self.bias = nn.Parameter(torch.FloatTensor(output_dim))
+            nn.init.zeros_(self.bias)
         else:
-        # If bias is not used, mark it as none.
-        self.bias = None
+            # If bias is not used, mark it as none.
+            self.bias = None
 
     def forward(self, x, adj):
         y = torch.mm(x, self.weights_nbrs) # H(l) * W_nbrs(l)
         y = torch.spmm(adj, y) # A * (H(l) * W_nbrs(l))
         y = y + torch.mm(x, self.weights_self) # A * (H(l) * W_nbrs(l)) + H(l) * W_self(l)
         if self.bias is not None:
-        y = y + self.bias # A * (H(l) * W_nbrs(l)) + H(l) * W_self(l) + B
+            y = y + self.bias # A * (H(l) * W_nbrs(l)) + H(l) * W_self(l) + B
         return y
 
 class GCNV2(nn.Module):

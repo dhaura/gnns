@@ -22,12 +22,12 @@ class GraphSageLayerV1(nn.Module):
 
         # Loop through all nodes.
         for node in range(num_of_nodes):
-        neighbors = adj[node]
-        if len(neighbors) > 0:
-            # Aggregate features of all neighbors.
-            agg_neighbors_x[node] = self.pool_func(x[neighbors], dim=0)
-        else:
-            agg_neighbors_x[node] = torch.zeros_like(x[node])
+            neighbors = adj[node]
+            if len(neighbors) > 0:
+                # Aggregate features of all neighbors.
+                agg_neighbors_x[node] = self.pool_func(x[neighbors], dim=0)
+            else:
+                agg_neighbors_x[node] = torch.zeros_like(x[node])
 
         # Concatenate aggregated neighbor features with node features.
         y = torch.cat([x, agg_neighbors_x], dim=1)

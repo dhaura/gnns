@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from isplib import * 
+import torch_sparse
 
-class GCNLayerV1(nn.Module):
+iSpLibPlugin.patch_pyg()
+
+class GCNLayerV3(nn.Module):
     def __init__(self, input_dim, output_dim, use_bias=True):
-        super(GCNLayerV1, self).__init__()
+        super(GCNLayerV3, self).__init__()
 
         # Define input and output dimensions of the GCN layer.
         self.input_dim = input_dim
@@ -24,18 +28,18 @@ class GCNLayerV1(nn.Module):
 
     def forward(self, x, adj):
         y = torch.mm(x, self.weights) # H(l) * W(l)
-        y = torch.spmm(adj, y) # A * (H(l) * W(l))
+        y = torch_sparse.matmul(adj, y) # A * (H(l) * W(l))
         if self.bias is not None:
             y = y + self.bias # A * (H(l) * W(l)) + B
         return y
 
-class GCNV1(nn.Module):
+class GCNV3(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.5, use_bias=True):
-        super(GCNV1, self).__init__()
+        super(GCNV3, self).__init__()
 
         self.dropout = dropout
-        self.gcn_layer_1 = GCNLayerV1(input_dim, hidden_dim, use_bias)
-        self.gcn_layer_2 = GCNLayerV1(hidden_dim, output_dim, use_bias)
+        self.gcn_layer_1 = GCNLayerV3(input_dim, hidden_dim, use_bias)
+        self.gcn_layer_2 = GCNLayerV3(hidden_dim, output_dim, use_bias)
 
     def forward(self, x, adj):
         x = self.gcn_layer_1(x, adj)

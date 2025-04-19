@@ -3,8 +3,11 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import scipy.sparse as sp
+import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
 import torch.nn.functional as F
+from torch_sparse import SparseTensor
 import os
 import time
 
@@ -21,6 +24,21 @@ def normalize_adj(adj):
 
     # Compute the normalized adjacency matrix in COO (Coordinate Format), sparse matrix format.
     return (D_inv_sqrt @ adj @ D_inv_sqrt).tocoo()
+
+def convert_adj_to_sparse_tensor(adj):
+    # Extract indices and values from adj_tensor
+    coo = adj.coalesce()
+    row, col = coo.indices()
+    value = coo.values()
+
+    # Convert to torch_sparse SparseTensor
+    adj = SparseTensor(
+        row=row,
+        col=col,
+        value=value,
+        sparse_sizes=adj.size()
+    )
+    return adj
 
 '''
     Normalize the feature matrix by dividing each feature by the sum of its row.
@@ -194,50 +212,50 @@ def convert_pubmed_to_txt(
     print("Extracting feature list ...")
     with open(node_data_file, 'r') as nf:
         for line in nf:
-        if line.startswith('cat='):
-            parts = line.strip().split('\t')
-            for token in parts:
-            if token.startswith('numeric:'):
-                fname = token.split(':')[1]
-                feature_list.append(fname)
-            break
+            if line.startswith('cat='):
+                parts = line.strip().split('\t')
+                for token in parts:
+                    if token.startswith('numeric:'):
+                        fname = token.split(':')[1]
+                        feature_list.append(fname)
+                break
+    
     feature_index = {name: i for i, name in enumerate(feature_list)}
     num_features = len(feature_list)
     print(f"Extracted {num_features} features.")
 
     id_map = {}
     label_set = set()
-    node_data = []
 
     # Parse node features.
     print("\nExtracting node labels and features ...")
     with open(node_data_file, 'r') as nf, open(os.path.join(output_dir, 'pubmed.content'), 'w') as cf:
         for line in nf:
-        line = line.strip()
-        if not line or line.startswith("NODE") or line.startswith("cat="):
+            line = line.strip()
+            if not line or line.startswith("NODE") or line.startswith("cat="):
                 continue
-        if '\t' not in line:
+            if '\t' not in line:
                 continue
 
-        paper_id, data = line.split('\t', 1)
+            paper_id, data = line.split('\t', 1)
 
-        fields = data.split()
-        features = ['0.0'] * num_features
-        label = None
+            fields = data.split()
+            features = ['0.0'] * num_features
+            label = None
 
-        for field in fields:
-            if '=' not in field:
-            continue
-            key, val = field.split('=', 1)
-            if key == 'label':
-            label = val
-            elif key in feature_index:
-            features[feature_index[key]] = val
+            for field in fields:
+                if '=' not in field:
+                    continue
+                key, val = field.split('=', 1)
+                if key == 'label':
+                    label = val
+                elif key in feature_index:
+                    features[feature_index[key]] = val
 
-        id_map[paper_id] = len(id_map)
-        label_set.add(label)
+            id_map[paper_id] = len(id_map)
+            label_set.add(label)
 
-        cf.write(f"{paper_id} {' '.join(features)} {label}\n")
+            cf.write(f"{paper_id} {' '.join(features)} {label}\n")
 
         print("Completed node feature and label extraction.")
 
@@ -245,23 +263,23 @@ def convert_pubmed_to_txt(
     print("\nExtracting edge list ...")
     with open(edge_list_file, 'r') as ef, open(os.path.join(output_dir, 'pubmed.cites'), 'w') as cf:
         for line in ef:
-        line = line.strip()
-        if not line or line.startswith("DIRECTED") or line.startswith("NO_FEATURES"):
-            continue
+            line = line.strip()
+            if not line or line.startswith("DIRECTED") or line.startswith("NO_FEATURES"):
+                continue
 
-        parts = line.split('|')
-        if len(parts) != 2:
-            continue
-        left = parts[0].split()[-1].strip()
-        right = parts[1].strip()
-        src = left.replace("paper:", "")
-        dst = right.replace("paper:", "")
+            parts = line.split('|')
+            if len(parts) != 2:
+                continue
+            left = parts[0].split()[-1].strip()
+            right = parts[1].strip()
+            src = left.replace("paper:", "")
+            dst = right.replace("paper:", "")
 
-        if src in id_map and dst in id_map:
-            cf.write(f"{src} {dst}\n")
-        print("Completed edge list extraction.")
+            if src in id_map and dst in id_map:
+                cf.write(f"{src} {dst}\n")
+            print("Completed edge list extraction.")
 
-    print(f"\nConverted to text format at: {output_dir}\n")
+        print(f"\nConverted to text format at: {output_dir}\n")
 
 '''
     Transfer the data to the specified device (CPU or GPU).
@@ -269,7 +287,7 @@ def convert_pubmed_to_txt(
 def transfer_data_to_device(device, features, labels, adj, train_mask, test_mask, val_mask):
     features = features.to(device)
     labels = labels.to(device)
-    if torch.is_tensor(adj):
+    if torch.is_tensor(adj) or isinstance(adj, SparseTensor):
         adj = adj.to(device)
     train_mask = train_mask.to(device)
     test_mask = test_mask.to(device)
@@ -341,3 +359,61 @@ def train_model(gnn, features, adj, labels, train_mask, val_mask, test_mask, num
     print(f'Converged Epoch: {converged_epoch}\n')
 
     return test_accuracy, elapsed_time, converged_epoch
+
+def plot_metric(df, metric, ylabel, filename, splits, models, bar_width, x):
+    plt.figure(figsize=(10, 6))
+
+    for i, split in enumerate(splits):
+        # Filter data for the split and ensure correct model order
+        values = [df[(df['model'] == model) & (df['data_split'] == split)][metric].values[0] for model in models]
+        plt.bar(x + i * bar_width, values, width=bar_width, label=split)
+
+    plt.xticks(x + bar_width * (len(splits) - 1) / 2, models, rotation=45)
+    plt.ylabel(ylabel)
+    plt.title(f"{ylabel} by Model and Data Split")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_cora_datasplit_graphs():
+    csv_path = "../output/gcn-cora-datasplit-output.csv"
+    output_dir = "../output/plots/cora/datasplit/"
+
+    # Load the CSV file into a DataFrame.
+    df = pd.read_csv(csv_path)
+
+    # 🔍 Unique x-axis groups and categories
+    models = df['model'].unique()
+    splits = df['data_split'].unique()
+
+    x = np.arange(len(models))  # the label locations
+
+    # Plot all three metrics
+    plot_metric(df, "accuracy", "Accuracy", output_dir + "accuracy_plot.png", splits, models, 0.2, x)
+    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "elapsed_time_plot.png", splits, models, 0.2, x)
+    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "epochs_to_converge_plot.png", splits, models, 0.2, x)
+
+def plot_metrics_from_csv(csv_path, ouput_dir):
+    # Load data
+    df = pd.read_csv(csv_path)
+
+    # Setup
+    models = df['model'].values
+    x = np.arange(len(models))
+    bar_width = 0.4
+    metrics = [
+        ("accuracy", "Accuracy", "accuracy_plot.png"),
+        ("elapsed_time", "Elapsed Time (s)", "elapsed_time_plot.png"),
+        ("num_epochs_to_converge", "Epochs to Converge", "epochs_to_converge_plot.png")
+    ]
+
+    for metric, ylabel, filename in metrics:
+        plt.figure(figsize=(8, 6))
+        plt.bar(x, df[metric], width=bar_width, color='steelblue')
+        plt.xticks(x, models, rotation=45, ha='right')
+        plt.ylabel(ylabel)
+        plt.title(f"{ylabel} by Model")
+        plt.tight_layout()
+        plt.savefig(ouput_dir + filename)
+        plt.close()

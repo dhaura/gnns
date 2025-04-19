@@ -6,13 +6,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../graphSAGE'))
 import time
 import torch
 import torch.nn.functional as F
-from utility import load_data, get_accuracy, get_data_split_masks, transfer_data_to_device, train_model
+from utility import convert_pubmed_to_txt, load_data, get_accuracy, get_data_split_masks, transfer_data_to_device, train_model
 from gsnnv1 import GraphSageNNV1
 from gsnnv2 import GraphSageNNV2
 from gsnnv3 import GraphSageNNV3
 from gsnnv4 import GraphSageNNV4
 
-output_file_path = '../output/cora-output.csv'
+output_file_path = '../output/pubmed-output.csv'
 
 
 '''
@@ -20,11 +20,11 @@ output_file_path = '../output/cora-output.csv'
 '''
 
 # Load the dataset.
-features, num_classes, labels, adj_list = load_data('../data/cora/cora.cites', '../data/cora/cora.content', add_self_loops=False, adj_type='AL')
+features, num_classes, labels, adj_list = load_data('../data/pubmed/pubmed.cites', '../data/pubmed/pubmed.content', sep=' ', add_self_loops=False, adj_type='AL')
 train_mask, test_mask, val_mask = get_data_split_masks(features.shape[0])
 
 '''
-  Train the GraphSage V1 model on the cora dataset using mean pooling.
+  Train the GraphSage V1 model on the pubmed dataset using mean pooling.
 '''
 
 accuracy_sum = 0
@@ -48,7 +48,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv1-mean,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V1 model on the cora dataset using sum pooling.
+  Train the GraphSage V1 model on the pubmed dataset using sum pooling.
 '''
 
 accuracy_sum = 0
@@ -72,7 +72,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv1-sum,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V1 model on the cora dataset using max pooling.
+  Train the GraphSage V1 model on the pubmed dataset using max pooling.
 '''
 
 accuracy_sum = 0
@@ -101,11 +101,11 @@ with open(output_file_path, 'a') as f:
 '''
 
 # Load the dataset.
-features, num_classes, labels, adj_list = load_data('../data/cora/cora.cites', '../data/cora/cora.content', add_self_loops=True, adj_type='AL')
+features, num_classes, labels, adj_list = load_data('../data/pubmed/pubmed.cites', '../data/pubmed/pubmed.content', sep=' ', add_self_loops=True, adj_type='AL')
 train_mask, test_mask, val_mask = get_data_split_masks(features.shape[0])
 
 '''
-  Train the GraphSage V2 model on the cora dataset using mean pooling.
+  Train the GraphSage V2 model on the pubmed dataset using mean pooling.
 '''
 
 accuracy_sum = 0
@@ -129,7 +129,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv2-mean,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V2 model on the cora dataset using sum pooling.
+  Train the GraphSage V2 model on the pubmed dataset using sum pooling.
 '''
 
 accuracy_sum = 0
@@ -153,7 +153,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv12sum,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V2 model on the cora dataset using max pooling.
+  Train the GraphSage V2 model on the pubmed dataset using max pooling.
 '''
 
 accuracy_sum = 0
@@ -182,11 +182,11 @@ with open(output_file_path, 'a') as f:
 '''
 
 # Load the dataset.
-features, num_classes, labels, edge_index = load_data('../data/cora/cora.cites', '../data/cora/cora.content', add_self_loops=False, adj_type='EI')
+features, num_classes, labels, edge_index = load_data('../data/pubmed/pubmed.cites', '../data/pubmed/pubmed.content', sep=' ', add_self_loops=False, adj_type='EI')
 train_mask, test_mask, val_mask = get_data_split_masks(features.shape[0])
 
 '''
-  Train the GraphSage V3 model on the cora dataset using mean pooling.
+  Train the GraphSage V3 model on the pubmed dataset using mean pooling.
 '''
 
 accuracy_sum = 0
@@ -210,7 +210,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv3-mean,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V3 model on the cora dataset using sum pooling.
+  Train the GraphSage V3 model on the pubmed dataset using sum pooling.
 '''
 
 accuracy_sum = 0
@@ -234,7 +234,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv3-sum,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V3 model on the cora dataset using max pooling.
+  Train the GraphSage V3 model on the pubmed dataset using max pooling.
 '''
 
 accuracy_sum = 0
@@ -263,11 +263,11 @@ with open(output_file_path, 'a') as f:
 '''
 
 # Load the dataset.
-features, num_classes, labels, edge_index = load_data('../data/cora/cora.cites', '../data/cora/cora.content', add_self_loops=True, adj_type='EI')
+features, num_classes, labels, edge_index = load_data('../data/pubmed/pubmed.cites', '../data/pubmed/pubmed.content', sep=' ', add_self_loops=True, adj_type='EI')
 train_mask, test_mask, val_mask = get_data_split_masks(features.shape[0])
 
 '''
-  Train the GraphSage V4 model on the cora dataset using mean pooling.
+  Train the GraphSage V4 model on the pubmed dataset using mean pooling.
 '''
 
 accuracy_sum = 0
@@ -291,7 +291,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv4-mean,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V4 model on the cora dataset using sum pooling.
+  Train the GraphSage V4 model on the pubmed dataset using sum pooling.
 '''
 
 accuracy_sum = 0
@@ -315,7 +315,7 @@ with open(output_file_path, 'a') as f:
     f.write(f'graphSAGEv4-sum,{average_accuracy},{average_elapsed_time},{average_num_epochs_to_converge}\n')
 
 '''
-  Train the GraphSage V4 model on the cora dataset using max pooling.
+  Train the GraphSage V4 model on the pubmed dataset using max pooling.
 '''
 
 accuracy_sum = 0
