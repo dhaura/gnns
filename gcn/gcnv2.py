@@ -48,4 +48,3 @@ class GCNV2(nn.Module):
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.gcn_layer_2(x, adj)
         return F.log_softmax(x, dim=1)
-        
