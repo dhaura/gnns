@@ -277,9 +277,9 @@ def convert_pubmed_to_txt(
 
             if src in id_map and dst in id_map:
                 cf.write(f"{src} {dst}\n")
-            print("Completed edge list extraction.")
+        print("Completed edge list extraction.")
 
-        print(f"\nConverted to text format at: {output_dir}\n")
+    print(f"\nConverted to text format at: {output_dir}\n")
 
 '''
     Transfer the data to the specified device (CPU or GPU).
@@ -398,22 +398,26 @@ def plot_metrics_from_csv(csv_path, ouput_dir):
     # Load data
     df = pd.read_csv(csv_path)
 
-    # Setup
-    models = df['model'].values
-    x = np.arange(len(models))
-    bar_width = 0.4
     metrics = [
-        ("accuracy", "Accuracy", "accuracy_plot.png"),
-        ("elapsed_time", "Elapsed Time (s)", "elapsed_time_plot.png"),
-        ("num_epochs_to_converge", "Epochs to Converge", "epochs_to_converge_plot.png")
+        ("accuracy", "Accuracy", "concat_accuracy_plot.png"),
+        ("elapsed_time", "Elapsed Time (s)", "concat_elapsed_time_plot.png"),
+        ("num_epochs_to_converge", "Epochs to Converge", "concat_epochs_plot.png")
     ]
 
+    # For each metric, plot a line for each dataset
     for metric, ylabel, filename in metrics:
-        plt.figure(figsize=(8, 6))
-        plt.bar(x, df[metric], width=bar_width, color='steelblue')
-        plt.xticks(x, models, rotation=45, ha='right')
+        plt.figure(figsize=(10, 6))
+
+        for dataset in df['dataset'].unique():
+            sub_df = df[df['dataset'] == dataset]
+            # Sort by model name for consistent line shape
+            sub_df = sub_df.sort_values(by='model')
+            plt.plot(sub_df['model'], sub_df[metric], marker='o', label=dataset)
+
+        plt.xticks(rotation=45, ha='right')
         plt.ylabel(ylabel)
-        plt.title(f"{ylabel} by Model")
+        plt.title(f"{ylabel} by Model (per Dataset)")
+        plt.legend()
         plt.tight_layout()
         plt.savefig(ouput_dir + filename)
         plt.close()
