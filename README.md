@@ -25,3 +25,9 @@ wget https://linqs-data.soe.ucsc.edu/public/datasets/pubmed-diabetes/pubmed-diab
 unzip pubmed-diabetes.zip
 rm pubmed-diabetes.zip
 ```
+
+```bash
+wget https://snap.stanford.edu/graphsage/reddit.zip
+unzip reddit.zip
+rm reddit.zip
+```
