@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from isplib import * 
 import torch_sparse
-
-iSpLibPlugin.patch_pyg()
 
 class GCNLayerV3(nn.Module):
     def __init__(self, input_dim, output_dim, use_bias=True):

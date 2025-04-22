@@ -10,6 +10,8 @@ import torch.nn.functional as F
 from torch_sparse import SparseTensor
 import os
 import time
+import csv
+import json
 
 
 '''
@@ -26,7 +28,7 @@ def normalize_adj(adj):
     return (D_inv_sqrt @ adj @ D_inv_sqrt).tocoo()
 
 def convert_adj_to_sparse_tensor(adj):
-    # Extract indices and values from adj_tensor
+    # Extract indices and values from adj
     coo = adj.coalesce()
     row, col = coo.indices()
     value = coo.values()
@@ -281,6 +283,47 @@ def convert_pubmed_to_txt(
 
     print(f"\nConverted to text format at: {output_dir}\n")
 
+def convert_reddit_to_txt(
+    node_data_file='../data/reddit/reddit-G.json',
+    edge_list_file='../data/reddit/reddit-id_map.json',
+    class_map_file='../data/reddit/reddit-class_map.json',
+    features_file='../data/reddit/reddit-feats.npy',
+    output_dir='../data/reddit'
+):
+    # Load raw reddit dataset files.
+    with open(node_data_file) as f:
+        G_data = json.load(f)
+    with open(edge_list_file) as f:
+        id_map = json.load(f)
+    with open(class_map_file) as f:
+        class_map = json.load(f)
+    features = np.load(features_file)
+
+    # Map node_id to integer index.
+    id_map = {k: int(v) for k, v in id_map.items()}
+    sorted_node_ids = sorted(id_map, key=lambda x: id_map[x])  # Ensures correct order.
+
+    #Create reddit.content file.
+    with open(output_dir + '/reddit.content', 'w') as fout:
+        for node_id in sorted_node_ids:
+            node_index = id_map[node_id]
+            feat_str = ' '.join(map(str, features[node_index]))
+
+            label_val = class_map[node_id]
+            if isinstance(label_val, list):
+                label = str(np.argmax(label_val))
+            else:
+                label = str(label_val)
+
+            fout.write(f"{node_index} {feat_str} {label}\n")
+
+    # Create reddit.edges file.
+    with open(output_dir + '/reddit.edges', 'w') as fout:
+        for edge in G_data['links']:
+            src = edge["source"]
+            dst = edge["target"]
+            fout.write(f"{src} {dst}\n")  # Optionally write both directions.
+
 '''
     Transfer the data to the specified device (CPU or GPU).
 '''
@@ -328,7 +371,7 @@ def train_model(gnn, features, adj, labels, train_mask, val_mask, test_mask, num
         gnn.eval()
         pred = gnn(features, adj)
         val_accuracy = get_accuracy(pred[val_mask], labels[val_mask])
-        # print(f'Epoch {epoch + 1}, Loss: {loss.item()}, Training Accuracy: {train_accuracy}, Validation Accuracy: {val_accuracy}')
+        print(f'Epoch {epoch + 1}, Loss: {loss.item()}, Training Accuracy: {train_accuracy}, Validation Accuracy: {val_accuracy}')
 
         if epoch == num_epochs - 1:
             if not converged:
@@ -358,7 +401,13 @@ def train_model(gnn, features, adj, labels, train_mask, val_mask, test_mask, num
     print(f'Training Time: {elapsed_time} seconds.')
     print(f'Converged Epoch: {converged_epoch}\n')
 
-    return test_accuracy, elapsed_time, converged_epoch
+    return accuracies, test_accuracy, elapsed_time, converged_epoch
+
+def write_accuracies_to_csv(dataset, accuracies, output_filepath):
+    with open(output_filepath, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        for epoch, acc in enumerate(accuracies, start=1):
+            writer.writerow([dataset, epoch, acc])
 
 def plot_metric(df, metric, ylabel, filename, splits, models, bar_width, x):
     plt.figure(figsize=(10, 6))
@@ -375,6 +424,7 @@ def plot_metric(df, metric, ylabel, filename, splits, models, bar_width, x):
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
+    print(f"Plot saved to: {filename}")
 
 def plot_cora_datasplit_graphs():
     csv_path = "../output/gcn-cora-datasplit-output.csv"
@@ -390,34 +440,86 @@ def plot_cora_datasplit_graphs():
     x = np.arange(len(models))  # the label locations
 
     # Plot all three metrics
-    plot_metric(df, "accuracy", "Accuracy", output_dir + "accuracy_plot.png", splits, models, 0.2, x)
-    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "elapsed_time_plot.png", splits, models, 0.2, x)
-    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "epochs_to_converge_plot.png", splits, models, 0.2, x)
+    plot_metric(df, "accuracy", "Accuracy", output_dir + "accuracy-plot.png", splits, models, 0.2, x)
+    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "elapsed-time-plot.png", splits, models, 0.2, x)
+    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "epochs-to-converge-plot.png", splits, models, 0.2, x)
 
-def plot_metrics_from_csv(csv_path, ouput_dir):
-    # Load data
+def plot_accuracies(csv_path, output_dir, filename, title):
+    # Load the CSV
     df = pd.read_csv(csv_path)
 
-    metrics = [
-        ("accuracy", "Accuracy", "concat_accuracy_plot.png"),
-        ("elapsed_time", "Elapsed Time (s)", "concat_elapsed_time_plot.png"),
-        ("num_epochs_to_converge", "Epochs to Converge", "concat_epochs_plot.png")
-    ]
+    # Ensure required columns exist
+    if not {'dataset', 'epoch', 'accuracy'}.issubset(df.columns):
+        raise ValueError("CSV must contain 'dataset', 'epoch', and 'accuracy' columns.")
 
-    # For each metric, plot a line for each dataset
-    for metric, ylabel, filename in metrics:
-        plt.figure(figsize=(10, 6))
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, filename)
 
-        for dataset in df['dataset'].unique():
-            sub_df = df[df['dataset'] == dataset]
-            # Sort by model name for consistent line shape
-            sub_df = sub_df.sort_values(by='model')
-            plt.plot(sub_df['model'], sub_df[metric], marker='o', label=dataset)
+    # Plot
+    plt.figure(figsize=(10, 6))
+    for dataset in df['dataset'].unique():
+        data = df[df['dataset'] == dataset]
+        plt.plot(data['epoch'], data['accuracy'], label=dataset)
 
-        plt.xticks(rotation=45, ha='right')
-        plt.ylabel(ylabel)
-        plt.title(f"{ylabel} by Model (per Dataset)")
-        plt.legend()
+    # Add labels and legend
+    plt.title(title)
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend(title="Dataset")
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save plot
+    plt.savefig(output_path)
+    plt.close()
+
+    print(f"Plot saved to: {output_path}")
+
+def plot_final_results(csv_path='../output/final-results.csv', output_dir='../output/plots'):
+    # Load CSV
+    df = pd.read_csv(csv_path)
+
+    base_filename = 'final'
+    
+    # Ensure required columns exist
+    required_cols = {"model", "dataset", "accuracy", "elapsed_time", "num_epochs_to_converge"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError(f"CSV must contain columns: {required_cols}")
+
+    # Create output directory if needed
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define metrics to plot
+    metrics = {
+        "accuracy": "Accuracy",
+        "elapsed_time": "Elapsed Time (s)",
+        "num_epochs_to_converge": "Epochs to Converge"
+    }
+
+    for metric_key, metric_label in metrics.items():
+        # Pivot for grouped bar chart: rows=model, columns=dataset
+        pivot_df = df.pivot(index="model", columns="dataset", values=metric_key)
+
+        # Plot setup
+        plt.figure(figsize=(12, 6))
+        bar_width = 0.2
+        x = np.arange(len(pivot_df.index))  # number of models
+
+        for i, dataset in enumerate(pivot_df.columns):
+            plt.bar(x + i * bar_width, pivot_df[dataset], width=bar_width, label=dataset)
+
+        # Customize axes and labels
+        plt.xlabel("Model")
+        plt.ylabel(metric_label)
+        plt.title(f"{metric_label} by Model and Dataset")
+        plt.xticks(x + bar_width * (len(pivot_df.columns) - 1) / 2, pivot_df.index, rotation=45)
+        plt.legend(title="Dataset")
+        plt.grid(axis='y', linestyle='--', alpha=0.6)
         plt.tight_layout()
-        plt.savefig(ouput_dir + filename)
+
+        # Save
+        out_file = os.path.join(output_dir, f"{base_filename}_{metric_key}.png")
+        plt.savefig(out_file)
         plt.close()
+        print(f"Plot saved to: {out_file}")

@@ -175,3 +175,4 @@ cython_debug/
 
 # Large Data Files
 data/pubmed/
+data/reddit/
