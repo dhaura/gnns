@@ -56,6 +56,7 @@ def normalize_features(features):
 def get_adjacency_matrix(edge_list, num_nodes, add_self_loops=False):
     # Create an undirected NetworkX graph using the edge list.
     graph = nx.Graph()
+    graph.add_nodes_from(range(num_nodes))
     graph.add_edges_from(edge_list.values)
 
      # Extract the adjacency matrix from the graph.
@@ -201,8 +202,8 @@ def get_accuracy(output, labels):
     Convert Pubmed Diabetes dataset from TAB format to text.
 '''
 def convert_pubmed_to_txt(
-    node_data_file='../data/pubmed/pubmed-diabetes/data/Pubmed-Diabetes.NODE.paper.tab',
-    edge_list_file='../data/pubmed/pubmed-diabetes/data/Pubmed-Diabetes.DIRECTED.cites.tab',
+    node_data_file='../data/pubmed/data/Pubmed-Diabetes.NODE.paper.tab',
+    edge_list_file='../data/pubmed/data/Pubmed-Diabetes.DIRECTED.cites.tab',
     output_dir='../data/pubmed'
 ):
     os.makedirs(output_dir, exist_ok=True)
@@ -341,10 +342,13 @@ def transfer_data_to_device(device, features, labels, adj, train_mask, test_mask
 '''
     Train the GCN model using the given features, adjacency matrix or list/ edge index, labels and masks.
 '''
-def train_model(gnn, features, adj, labels, train_mask, val_mask, test_mask, num_epochs=200, learning_rate=0.01, weight_decay=5e-4):
+def train_model(gnn, features, adj, labels, train_mask, val_mask, test_mask, use_cpu=False, num_epochs=200, learning_rate=0.01, weight_decay=5e-4):
     
     # Set torch device type.
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if use_cpu:
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # print(f"Using device: {device}")
 
     gnn = gnn.to(device)
@@ -409,17 +413,17 @@ def write_accuracies_to_csv(dataset, accuracies, output_filepath):
         for epoch, acc in enumerate(accuracies, start=1):
             writer.writerow([dataset, epoch, acc])
 
-def plot_metric(df, metric, ylabel, filename, splits, models, bar_width, x):
+def plot_metric(df, metric, ylabel, filename, param_vals, param, param_name, models, bar_width, x):
     plt.figure(figsize=(10, 6))
 
-    for i, split in enumerate(splits):
-        # Filter data for the split and ensure correct model order
-        values = [df[(df['model'] == model) & (df['data_split'] == split)][metric].values[0] for model in models]
+    for i, split in enumerate(param_vals):
+        # Filter data for the param and ensure correct model order
+        values = [df[(df['model'] == model) & (df[param] == split)][metric].values[0] for model in models]
         plt.bar(x + i * bar_width, values, width=bar_width, label=split)
 
-    plt.xticks(x + bar_width * (len(splits) - 1) / 2, models, rotation=45)
+    plt.xticks(x + bar_width * (len(param_vals) - 1) / 2, models, rotation=45)
     plt.ylabel(ylabel)
-    plt.title(f"{ylabel} by Model and Data Split")
+    plt.title(f"{ylabel} by Model and {param_name}")
     plt.legend()
     plt.tight_layout()
     plt.savefig(filename)
@@ -440,9 +444,27 @@ def plot_cora_datasplit_graphs():
     x = np.arange(len(models))  # the label locations
 
     # Plot all three metrics
-    plot_metric(df, "accuracy", "Accuracy", output_dir + "accuracy-plot.png", splits, models, 0.2, x)
-    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "elapsed-time-plot.png", splits, models, 0.2, x)
-    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "epochs-to-converge-plot.png", splits, models, 0.2, x)
+    plot_metric(df, "accuracy", "Accuracy", output_dir + "accuracy-plot.png", splits, 'data_split', 'Data Split', models, 0.2, x)
+    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "elapsed-time-plot.png", splits, 'data_split', 'Data Split', models, 0.2, x)
+    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "epochs-to-converge-plot.png", splits, 'data_split', 'Data Split', models, 0.2, x)
+
+def plot_gcn_cpu_perf_graphs():
+    csv_path = "../output/gcn-cpu-results.csv"
+    output_dir = "../output/plots/cpu/"
+
+    # Load the CSV file into a DataFrame.
+    df = pd.read_csv(csv_path)
+
+    # 🔍 Unique x-axis groups and categories
+    models = df['model'].unique()
+    datasets = df['dataset'].unique()
+
+    x = np.arange(len(models))  # the label locations
+
+    # Plot all three metrics
+    plot_metric(df, "accuracy", "Accuracy", output_dir + "cpu-accuracy-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
+    plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "cpu-elapsed-time-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
+    plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "cpu-epochs-to-converge-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
 
 def plot_accuracies(csv_path, output_dir, filename, title):
     # Load the CSV

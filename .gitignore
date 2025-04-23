@@ -173,6 +173,15 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Large Data Files
+# Large data files
 data/pubmed/
 data/reddit/
+
+# Logs
+output/logs
+
+# Job submission scripts
+scripts/
+
+# JetBrains IDE project files
+.idea/
