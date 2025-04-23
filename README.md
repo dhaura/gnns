@@ -1,6 +1,10 @@
 # gnns
 
 ```bash
+module load python/3.10 
+```
+
+```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
@@ -10,7 +14,7 @@ pip install torch==2.3
 pip install scipy networkx numpy pandas matplotlib seaborn
 pip install wheel
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.3.0+cpu.html
-pip install torch-scatter -f https://data.pyg.org/whl/torch-2.3.0+cu124.html
+pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.3.0+cu124.html
 ```
 
 ```bash
