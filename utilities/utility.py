@@ -1,4 +1,8 @@
 # Helper functions to load data and, develop and train the GCN.
+import os
+import time
+import csv
+import json
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -8,10 +12,8 @@ import seaborn as sns
 import torch
 import torch.nn.functional as F
 from torch_sparse import SparseTensor
-import os
-import time
-import csv
-import json
+from torch_geometric.datasets import Reddit
+from torch_geometric.utils import to_scipy_sparse_matrix
 
 
 '''
@@ -146,6 +148,34 @@ def load_data(edge_list_path, node_data_path, sep='\t', add_self_loops=False, ad
         raise ValueError("Invalid adjacency type. Choose from 'AM', 'AL', or 'EI'.")
 
     return features, num_of_labels, labels, adj
+
+def load_reddit_data(add_self_loops=False, adj_type='AM'):
+    dataset = Reddit(root='./data/Reddit')
+    data = dataset[0]
+
+    features = data.x
+    labels = data.y
+    num_classes = dataset.num_classes
+    edge_index = data.edge_index
+
+    if adj_type == 'AM':
+        adj = to_scipy_sparse_matrix(edge_index, num_nodes=data.num_nodes)
+        if add_self_loops:
+            adj = adj + sp.eye(adj.shape[0])
+        normalized_adj = normalize_adj(adj)
+        adj_matrix = torch.sparse.FloatTensor(
+            torch.LongTensor([normalized_adj.row, normalized_adj.col]),
+            torch.FloatTensor(normalized_adj.data),
+            torch.Size(normalized_adj.shape)
+        )
+
+        return features, num_classes, labels, adj_matrix
+    elif adj_type == 'EI':
+        if add_self_loops:
+            self_loops = torch.arange(0, data.num_nodes, dtype=torch.long)
+            self_loops = self_loops.unsqueeze(0).repeat(2, 1)
+            edge_index = torch.cat([edge_index, self_loops], dim=1)
+        return features, num_classes, labels, edge_index
 
 '''
     Retrieve the train, test and validation masks for the given dataset.
@@ -284,47 +314,6 @@ def convert_pubmed_to_txt(
 
     print(f"\nConverted to text format at: {output_dir}\n")
 
-def convert_reddit_to_txt(
-    node_data_file='../data/reddit/reddit-G.json',
-    edge_list_file='../data/reddit/reddit-id_map.json',
-    class_map_file='../data/reddit/reddit-class_map.json',
-    features_file='../data/reddit/reddit-feats.npy',
-    output_dir='../data/reddit'
-):
-    # Load raw reddit dataset files.
-    with open(node_data_file) as f:
-        G_data = json.load(f)
-    with open(edge_list_file) as f:
-        id_map = json.load(f)
-    with open(class_map_file) as f:
-        class_map = json.load(f)
-    features = np.load(features_file)
-
-    # Map node_id to integer index.
-    id_map = {k: int(v) for k, v in id_map.items()}
-    sorted_node_ids = sorted(id_map, key=lambda x: id_map[x])  # Ensures correct order.
-
-    #Create reddit.content file.
-    with open(output_dir + '/reddit.content', 'w') as fout:
-        for node_id in sorted_node_ids:
-            node_index = id_map[node_id]
-            feat_str = ' '.join(map(str, features[node_index]))
-
-            label_val = class_map[node_id]
-            if isinstance(label_val, list):
-                label = str(np.argmax(label_val))
-            else:
-                label = str(label_val)
-
-            fout.write(f"{node_index} {feat_str} {label}\n")
-
-    # Create reddit.edges file.
-    with open(output_dir + '/reddit.edges', 'w') as fout:
-        for edge in G_data['links']:
-            src = edge["source"]
-            dst = edge["target"]
-            fout.write(f"{src} {dst}\n")  # Optionally write both directions.
-
 '''
     Transfer the data to the specified device (CPU or GPU).
 '''
@@ -455,13 +444,13 @@ def plot_gcn_cpu_perf_graphs():
     # Load the CSV file into a DataFrame.
     df = pd.read_csv(csv_path)
 
-    # 🔍 Unique x-axis groups and categories
+    # Unique x-axis groups and categories.
     models = df['model'].unique()
     datasets = df['dataset'].unique()
 
-    x = np.arange(len(models))  # the label locations
+    x = np.arange(len(models))
 
-    # Plot all three metrics
+    # Plot all three metrics.
     plot_metric(df, "accuracy", "Accuracy", output_dir + "cpu-accuracy-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
     plot_metric(df, "elapsed_time", "Elapsed Time (s)", output_dir + "cpu-elapsed-time-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
     plot_metric(df, "num_epochs_to_converge", "Epochs to Converge", output_dir + "cpu-epochs-to-converge-plot.png", datasets, 'dataset', 'Dataset', models, 0.2, x)
