@@ -22,4 +22,6 @@ plot_accuracies('../output/gsv4-mean-val-accuracies.csv', '../output/plots', 'gs
 plot_accuracies('../output/gsv4-mean-val-accuracies.csv', '../output/plots', 'gsv4-mean-val-accuracies.png', 'GraphSAGE V4 (Mean) Training')
 plot_accuracies('../output/gsv4-sum-val-accuracies.csv', '../output/plots', 'gsv4-sum-val-accuracies.png', 'GraphSAGE V4 (Sum) Training')
 plot_accuracies('../output/gsv4-max-val-accuracies.csv', '../output/plots', 'gsv4-max-val-accuracies.png', 'GraphSAGE V4 (Max) Training')
+plot_final_results(csv_path='../output/final-gcn-results.csv', output_dir='../output/plots/gcn')
+plot_final_results(csv_path='../output/final-gs-results.csv', output_dir='../output/plots/gs')
 plot_final_results()
